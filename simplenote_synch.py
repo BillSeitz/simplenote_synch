@@ -106,7 +106,7 @@ def push_file(fname): # push local file to cloud - may be new or change
 			note['name'] = fname
 			map_update(note)
 			
-def cloud_raw_list_grab(): # return (possibly-cached) raw list of notes
+def cloud_raw_list_grab(): # return (possibly-cached) raw list of notes - doesn't include name/content
 	if os.path.exists(pfile_raw):
 		print 'using cached pickle of raw notes'
 		pkl_file = open(pfile_raw, 'rb')
@@ -160,6 +160,9 @@ def map_create(): # dump any existing pickle file of maps and create new one
 
 def map_show(): # show what's been cached in map, assuming all consistent
 	pickleread()
+	print 'last_synch_finish', last_synch_finish
+	print len(notes), 'notes'
+	print len(name_keys), 'keys'
 	fname = 'Journal2012'
 	key = name_keys[fname]
 	print 'note', fname, notes[key]
@@ -197,10 +200,7 @@ def push_local_to_cloud(moddate=1344182336.0): # push all files modded since a t
 				push_file(fname)
 	picklewrite(last_synch_finish, notes, name_keys)
 
-def last_synch_update():
-	pass
-
-def last_synch_read():
+def last_synch_read(): # this is start of some future code
 	(last_synch_finish, notes, name_keys) = pickleread()
 	# local_changed = list of files mod since last_synch_finish # filename and moddate
 	# cloud_changed = list of notes mod since last_synch_finish # initially just key and moddate
@@ -208,7 +208,7 @@ def last_synch_read():
 		if f not in name_keys.keys():
 			push_new(f)
 
-from simplenote import Simplenote
+from simplenote import Simplenote # http://pypi.python.org/pypi/simplenote/0.2.0
 simplenote = Simplenote(username, password)
 
 def cloud_list_create():
