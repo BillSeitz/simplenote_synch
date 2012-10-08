@@ -53,9 +53,8 @@ def pickleread():
     notes = cPickle.load(pkl_file)
     name_keys = cPickle.load(pkl_file)
     pkl_file.close()
-    return (last_synch_finish, notes, name_keys)
-    
-def picklewrite(last_synch_finish, notes, name_keys):
+
+def picklewrite():
     print 'doing picklewrite'
     pkl_file = open(pfile_full, 'wb')
     cPickle.dump(last_synch_finish, pkl_file)
@@ -69,7 +68,7 @@ def map_update(note, dedupe=0): # update the map dictionaries - need key, conten
     #name = note['name']
     #print 'key, name', key, name
     #print 'notes', notes
-    if dedupe == 0: # don't check whether duplicating name
+    if dedupe == 1: # don't check whether duplicating name
         if note['name'] in name_keys:
             return 'dupe'
     notes[note['key']] = note
@@ -116,6 +115,7 @@ def cloud_raw_list_grab(): # return (possibly-cached) raw list of notes - doesn'
         pkl_file = open(pfile_raw, 'rb')
         c_notes = cPickle.load(pkl_file)
         pkl_file.close()
+        print len(c_notes), 'raw notes in cloud list'
         return c_notes
     else:
         print 'calling get_note_list()'
@@ -127,6 +127,7 @@ def cloud_raw_list_grab(): # return (possibly-cached) raw list of notes - doesn'
             pkl_file = open(pfile_raw, 'wb')
             cPickle.dump(c_notes, pkl_file)
             pkl_file.close()
+            print len(c_notes), 'raw notes in cloud list'
             return c_notes
 
 def map_create(): # dump any existing pickle file of maps and create new one
@@ -160,15 +161,18 @@ def map_create(): # dump any existing pickle file of maps and create new one
                 last_synch_finish = c_mod
                 print 'Updated last_synch_finish to %d' % (last_synch_finish)
             map_update(c_note)
-        picklewrite(last_synch_finish, notes, name_keys)
+        picklewrite()
 
-def dedupe_and_map_create(): # scrape cloud, dedupe on name, and build new local pickle cache
+def dedupe_and_map_create(dump_pickle=0): # scrape cloud, dedupe on name, and build new local pickle cache
     global last_synch_finish, notes, name_keys
-    if os.path.exists(pfile_full):
-        os.remove(pfile_full)
-    last_synch_finish = 0
-    notes = {}
-    name_keys = {}
+    if dump_pickle:
+        if os.path.exists(pfile_full):
+            os.remove(pfile_full)
+        last_synch_finish = 0
+        notes = {}
+        name_keys = {}
+    else:
+        pickleread()
     print 'getting notes list now'
     c_notes = cloud_raw_list_grab()
     if not c_notes:
@@ -177,6 +181,8 @@ def dedupe_and_map_create(): # scrape cloud, dedupe on name, and build new local
         print 'got %d notes metadata, starting scraping' % (len(c_notes))
         i = 0
         for note in c_notes:
+            if note['key'] in notes:
+                continue # don't bother scraping again
             i = i+1
             print 'Getting note %d %s' % (i, note['key'])
             (c_note, status) = simplenote.get_note(note['key'])
@@ -195,16 +201,40 @@ def dedupe_and_map_create(): # scrape cloud, dedupe on name, and build new local
             if map_update(c_note, 1) == 'dupe':
                 print 'deleting cloud note', name, note['key']
                 simplenote.delete_note(note['key'])
-        picklewrite(last_synch_finish, notes, name_keys)
+        picklewrite()
 
 def map_show(): # show what's been cached in map, assuming all consistent
     pickleread()
     print 'last_synch_finish', last_synch_finish
     print len(notes), 'notes'
     print len(name_keys), 'keys'
-    fname = 'Journal2012'
+    fname = 'MetroCard' #'Journal2012'
     key = name_keys[fname]
     print 'note', fname, notes[key]
+
+def map_dupe_check(): # check local map file for name dupes
+	pickleread()
+	for note in notes:
+		#print type(note), note
+		print '%s\t%s' % (notes[note]['name'], notes[note]['key'])
+
+def dedupe_from_map(): # catch dupes in map, delete from cloud and map and raw-map
+	pickleread()
+	key_names_list = []
+	for name in name_keys:
+		key = name_keys[name]
+		key_names_list.append(key)
+	i = 0
+	import copy
+	cnotes = copy.deepcopy(notes)
+	for name in cnotes:
+		key = cnotes[name]['key']
+		if key not in key_names_list:
+			i = i + 1
+			print 'will kill', i, key
+			simplenote.delete_note(key)
+			del notes[key]
+	picklewrite()
 
 def moddate_compare(): 
     """
@@ -237,7 +267,7 @@ def push_local_to_cloud(moddate=1344182336.0): # push all files modded since a t
                 if os.path.getmtime(f_full) > last_synch_finish:
                     last_synch_finish = os.path.getmtime(f_full)
                 push_file(fname)
-    picklewrite(last_synch_finish, notes, name_keys)
+    picklewrite()
 
 def last_synch_read(): # this is start of some future code
     (last_synch_finish, notes, name_keys) = pickleread()
@@ -254,9 +284,11 @@ def cloud_list_create():
     (notes, status) = simplenote.get_note_list() # have to get the whole list
     
 if __name__ == '__main__':
+    cloud_raw_list_grab()
     # map_create()
     # moddate_compare()
-    # map_show()
+    map_show()
     # push_local_to_cloud()
-    dedupe_and_map_create()
-    
+    # dedupe_and_map_create()
+    # map_dupe_check()
+    # dedupe_from_map()
