@@ -97,9 +97,9 @@ def push_file(fname): # push local file to cloud - may be new or change
         (note, status) = simplenote.update_note(note)
         if status > -1:
             print fname, 'updated in cloud, updating map'
-            notes[key]['modifydate'] = f_moddate
+            notes[key]['modifydate'] = f_moddate # don't need to do whole map_update()
         else:
-            print fname, 'update to cloud failed!'
+            print fname, '------ update to cloud failed!!!!!!!'
     else: # adding to cloud for first time
         print fname, 'not in cloud, adding for first time now'
         note = {'content': n_content, 'modifydate': f_moddate}
@@ -108,6 +108,8 @@ def push_file(fname): # push local file to cloud - may be new or change
             print fname, 'added to cloud, now adding to map'
             note['name'] = fname
             map_update(note)
+        else:
+            print fname, '---------adding to cloud failed!!!!!'
             
 def cloud_raw_list_grab(): # return (possibly-cached) raw list of notes - doesn't include name/content
     if os.path.exists(pfile_raw):
@@ -253,20 +255,37 @@ def moddate_compare():
     j_moddate = os.path.getmtime(os.path.join(path_text, fname))
     print fname, j_moddate
 
-def push_local_to_cloud(moddate=1344182336.0): # push all files modded since a time into cloud - some will be new, some will be changes
+def push_local_to_cloud(): # push all files modded since last_synch_finish into cloud - some may be new, some may be changes
     global last_synch_finish, notes, name_keys
     pickleread()
+    moddate_max = last_synch_finish
+    any_fail = False
     flist = os.listdir(path_text)
     for fname in flist:
         f_full = os.path.join(path_text, fname)
         if os.path.isfile(f_full):
-            if fname == '.DS_Store':
+            if fname == '.DS_Store': # ignore this file
                 continue
-            if os.path.getmtime(f_full) > moddate:
+            if os.path.getmtime(f_full) > last_synch_finish:
                 print 'pushing', fname
-                if os.path.getmtime(f_full) > last_synch_finish:
-                    last_synch_finish = os.path.getmtime(f_full)
-                push_file(fname)
+                # push_file(fname)
+                try:
+                    push_file(fname)
+                    if os.path.getmtime(f_full) > moddate_max:
+                        moddate_max = os.path.getmtime(f_full) 
+                except:
+                    print '---- something broke !!!!!'
+                    any_fail = True
+                    continue
+    if not any_fail:
+    	print 'updating last_synch_finish to', moddate_max
+        last_synch_finish = moddate_max
+    picklewrite()
+
+def last_synch_hack(d=1349641358.0): # force cache synch date to specific value
+    global last_synch_finish, notes, name_keys
+    pickleread()
+    last_synch_finish = d
     picklewrite()
 
 def last_synch_read(): # this is start of some future code
@@ -284,11 +303,14 @@ def cloud_list_create():
     (notes, status) = simplenote.get_note_list() # have to get the whole list
     
 if __name__ == '__main__':
-    cloud_raw_list_grab()
+    # cloud_raw_list_grab()
     # map_create()
     # moddate_compare()
+    # last_synch_hack()
     map_show()
     # push_local_to_cloud()
     # dedupe_and_map_create()
     # map_dupe_check()
     # dedupe_from_map()
+    push_local_to_cloud()
+    map_show()
