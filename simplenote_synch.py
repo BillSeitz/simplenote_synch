@@ -94,22 +94,35 @@ def push_file(fname): # push local file to cloud - may be new or change
         note = notes[key]
         note['modifydate'] = f_moddate
         note['content'] = n_content
-        (note, status) = simplenote.update_note(note)
-        if status > -1:
-            print fname, 'updated in cloud, updating map'
-            notes[key]['modifydate'] = f_moddate # don't need to do whole map_update()
-        else:
-            print fname, '------ update to cloud failed!!!!!!!'
+        try:
+            (note, status) = simplenote.update_note(note)
+            if status > -1:
+                print fname, 'updated in cloud, updating map'
+                notes[key]['modifydate'] = f_moddate # don't need to do whole map_update()
+                return True
+            else:
+                print fname, '------ update to cloud failed!!!!!!!'
+                return False
+        except:
+            print fname, '------ update to cloud crashed!!!!!!!'
+            return False            
     else: # adding to cloud for first time
         print fname, 'not in cloud, adding for first time now'
         note = {'content': n_content, 'modifydate': f_moddate}
-        (note, status) = simplenote.update_note(note)
-        if status > -1: 
-            print fname, 'added to cloud, now adding to map'
-            note['name'] = fname
-            map_update(note)
-        else:
-            print fname, '---------adding to cloud failed!!!!!'
+        try:
+            (note, status) = simplenote.update_note(note)
+            if status > -1: 
+                print fname, 'added to cloud, now adding to map'
+                note['name'] = fname
+                map_update(note)
+                return True
+            else:
+                print fname, '---------adding to cloud failed!!!!!'
+                return False
+        except:
+            print fname, '---------adding to cloud crashed!!!!!'
+            return False
+			
             
 def cloud_raw_list_grab(): # return (possibly-cached) raw list of notes - doesn't include name/content
     if os.path.exists(pfile_raw):
@@ -165,7 +178,7 @@ def map_create(): # dump any existing pickle file of maps and create new one
             map_update(c_note)
         picklewrite()
 
-def dedupe_and_map_create(dump_pickle=0): # scrape cloud, dedupe on name, and build new local pickle cache
+def dedupe_and_map_create(dump_pickle=False): # scrape cloud, dedupe on name, and build new local pickle cache
     global last_synch_finish, notes, name_keys
     if dump_pickle:
         if os.path.exists(pfile_full):
@@ -208,8 +221,8 @@ def dedupe_and_map_create(dump_pickle=0): # scrape cloud, dedupe on name, and bu
 def map_show(): # show what's been cached in map, assuming all consistent
     pickleread()
     print 'last_synch_finish', last_synch_finish
-    print len(notes), 'notes'
-    print len(name_keys), 'keys'
+    print len(notes), 'notes (according to map)'
+    print len(name_keys), 'keys (unique names, according to map)'
     fname = 'MetroCard' #'Journal2012'
     key = name_keys[fname]
     print 'note', fname, notes[key]
@@ -268,21 +281,21 @@ def push_local_to_cloud(): # push all files modded since last_synch_finish into 
                 continue
             if os.path.getmtime(f_full) > last_synch_finish:
                 print 'pushing', fname
-                # push_file(fname)
-                try:
-                    push_file(fname)
+                if push_file(fname):
                     if os.path.getmtime(f_full) > moddate_max:
                         moddate_max = os.path.getmtime(f_full) 
-                except:
+                else:
                     print '---- something broke !!!!!'
                     any_fail = True
                     continue
     if not any_fail:
     	print 'updating last_synch_finish to', moddate_max
         last_synch_finish = moddate_max
+    else:
+    	print 'There were update-cloud failures, not updating last_synch_finish'
     picklewrite()
 
-def last_synch_hack(d=1349641358.0): # force cache synch date to specific value
+def last_synch_hack(d=1350571098.0): # force cache synch date to specific value
     global last_synch_finish, notes, name_keys
     pickleread()
     last_synch_finish = d
@@ -303,13 +316,13 @@ def cloud_list_create():
     (notes, status) = simplenote.get_note_list() # have to get the whole list
     
 if __name__ == '__main__':
-    # cloud_raw_list_grab()
+    cloud_raw_list_grab()
     # map_create()
     # moddate_compare()
     # last_synch_hack()
     map_show()
     # push_local_to_cloud()
-    # dedupe_and_map_create()
+    # dedupe_and_map_create(True)
     # map_dupe_check()
     # dedupe_from_map()
     push_local_to_cloud()
